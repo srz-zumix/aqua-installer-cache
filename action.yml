@@ -1,0 +1,87 @@
+name: aqua-installer-cache
+description: Cache aqua install directory
+
+inputs:
+  working-directory:
+    description: 'The working directory'
+    required: false
+    default: '${{ github.workspace }}'
+  config-file:
+    description: 'The aqua config file path'
+    required: false
+    default: ''
+
+outputs:
+  aqua-root-dir:
+    description: 'The aqua root directory path'
+    value: ${{ steps.aqua-root-dir.outputs.path }}
+  config-file-hash:
+    description: 'The hash of the aqua config file(s)'
+    value: ${{ steps.aqua-root-dir.outputs.aqua-yaml-hash }}
+  cache-hit:
+    description: 'Whether the cache was hit'
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get aqua root dir
+      id: aqua-root-dir
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CONFIG_FILE: ${{ inputs.config-file }}
+      run: |
+        if [ -n "${AQUA_ROOT_DIR}" ]; then
+          echo "path=${AQUA_ROOT_DIR}" >> "${GITHUB_OUTPUT}"
+        elif [ "${{ runner.os }}" = "Windows" ]; then
+          echo "path=${HOME}/AppData/Local/aquaproj-aqua" >> "${GITHUB_OUTPUT}"
+        else
+          echo "path=${XDG_DATA_HOME:-$HOME/.local/share}/aquaproj-aqua" >> "${GITHUB_OUTPUT}"
+        fi
+
+        # Find aqua config file
+        if [ -n "${CONFIG_FILE}" ]; then
+          AQUA_CONFIG="${CONFIG_FILE}"
+        else
+          # Search for aqua config file in working directory
+          # https://aquaproj.github.io/docs/reference/config/#configuration-file-path
+          AQUA_CONFIG=""
+          for config in "aqua.yaml" "aqua.yml" ".aqua.yaml" ".aqua.yml" ".aqua/aqua.yaml" ".aqua/aqua.yml"; do
+            if [ -f "${config}" ]; then
+              AQUA_CONFIG="${config}"
+              break
+            fi
+          done
+        fi
+
+        # Collect all config files for hash calculation
+        CONFIG_FILES=()
+        if [ -n "${AQUA_CONFIG}" ] && [ -f "${AQUA_CONFIG}" ]; then
+          CONFIG_FILES+=("${AQUA_CONFIG}")
+        fi
+
+        # Add AQUA_GLOBAL_CONFIG files (colon-separated paths)
+        if [ -n "${AQUA_GLOBAL_CONFIG}" ]; then
+          IFS=':' read -ra GLOBAL_CONFIGS <<< "${AQUA_GLOBAL_CONFIG}"
+          for gconfig in "${GLOBAL_CONFIGS[@]}"; do
+            if [ -n "${gconfig}" ] && [ -f "${gconfig}" ]; then
+              CONFIG_FILES+=("${gconfig}")
+            fi
+          done
+        fi
+
+        if [ ${#CONFIG_FILES[@]} -gt 0 ]; then
+          echo "aqua-yaml-hash=$(cat "${CONFIG_FILES[@]}" | sha256sum | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
+        else
+          echo "::warning::No aqua config file found"
+          echo "aqua-yaml-hash=" >> "${GITHUB_OUTPUT}"
+        fi
+    - uses: actions/cache@v4
+      id: cache
+      with:
+        path: ${{ steps.aqua-root-dir.outputs.path }}
+        key: aqua-installer-cache-${{ runner.os }}-${{ runner.arch }}-${{ steps.aqua-root-dir.outputs.aqua-yaml-hash }}
+        restore-keys: |
+          aqua-installer-cache-${{ runner.os }}-${{ runner.arch }}-

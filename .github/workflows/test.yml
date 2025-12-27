@@ -1,0 +1,114 @@
+name: Test Action
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install aqua
+        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
+        with:
+          aqua_version: v2.56.0
+
+      - name: Test aqua-installer-cache action (first run)
+        id: cache-first
+        uses: ./
+
+      - name: Verify aqua root dir output
+        shell: bash
+        run: |
+          echo "aqua-root-dir: ${{ steps.cache-first.outputs.aqua-root-dir }}"
+          if [ -z "${{ steps.cache-first.outputs.aqua-root-dir }}" ]; then
+            echo "Error: aqua-root-dir output is empty"
+            exit 1
+          fi
+
+      - name: Verify cache-hit output (first run should be false)
+        shell: bash
+        run: |
+          echo "cache-hit: ${{ steps.cache-first.outputs.cache-hit }}"
+          if [ "${{ steps.cache-first.outputs.cache-hit }}" = "true" ]; then
+            echo "Warning: Expected cache-hit to be false on first run"
+          fi
+
+      - name: Install tools with aqua
+        shell: bash
+        run: |
+          aqua install --all
+
+      - name: Verify tools are installed
+        shell: bash
+        run: |
+          which pinact
+          pinact --version
+
+      - name: Test aqua-installer-cache action (second run)
+        id: cache-second
+        uses: ./
+
+      - name: Verify cache-hit output (second run should be true)
+        shell: bash
+        run: |
+          echo "cache-hit: ${{ steps.cache-second.outputs.cache-hit }}"
+          if [ "${{ steps.cache-second.outputs.cache-hit }}" != "true" ]; then
+            echo "Warning: Expected cache-hit to be true on second run"
+          fi
+
+  test-custom-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install aqua
+        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
+        with:
+          aqua_version: v2.56.0
+
+      - name: Create custom config
+        run: |
+          mkdir -p custom-dir
+          cat > custom-dir/custom-aqua.yaml <<EOF
+          registries:
+          - type: standard
+            ref: v4.448.0
+          packages:
+          - name: suzuki-shunsuke/pinact@v3.6.0
+          EOF
+
+      - name: Test with custom config file
+        id: cache-custom
+        uses: ./
+        with:
+          working_directory: custom-dir
+          config_file: custom-dir/custom-aqua.yaml
+
+      - name: Test with custom config file
+        id: cache-default
+        uses: ./
+        with:
+          working_directory: custom-dir
+          config_file: custom-dir/custom-aqua.yaml
+
+      - name: Verify outputs
+        shell: bash
+        run: |
+          if [ -z "${{ steps.cache-default.outputs.aqua-root-dir }}" ]; then
+              echo "Error: aqua-root-dir output is empty"
+              exit 1
+          fi
+          if [ "${{ steps.cache-custom.outputs.config-file-hash }}" != "${{ steps.cache-default.outputs.config-file-hash }}" ]; then
+              echo "Error: config-file-hash outputs do not match"
+              exit 1
+          fi
