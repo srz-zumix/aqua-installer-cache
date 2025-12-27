@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install aqua
         uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
@@ -27,18 +29,22 @@ jobs:
 
       - name: Verify aqua root dir output
         shell: bash
+        env:
+          AQUA_ROOT_DIR_OUTPUT: ${{ steps.cache-first.outputs.aqua-root-dir }}
         run: |
-          echo "aqua-root-dir: ${{ steps.cache-first.outputs.aqua-root-dir }}"
-          if [ -z "${{ steps.cache-first.outputs.aqua-root-dir }}" ]; then
+          echo "aqua-root-dir: ${AQUA_ROOT_DIR_OUTPUT}"
+          if [ -z "${AQUA_ROOT_DIR_OUTPUT}" ]; then
             echo "Error: aqua-root-dir output is empty"
             exit 1
           fi
 
       - name: Verify cache-hit output (first run should be false)
         shell: bash
+        env:
+          CACHE_HIT: ${{ steps.cache-first.outputs.cache-hit }}
         run: |
-          echo "cache-hit: ${{ steps.cache-first.outputs.cache-hit }}"
-          if [ "${{ steps.cache-first.outputs.cache-hit }}" = "true" ]; then
+          echo "cache-hit: ${CACHE_HIT}"
+          if [ "${CACHE_HIT}" = "true" ]; then
             echo "Warning: Expected cache-hit to be false on first run"
           fi
 
@@ -59,9 +65,11 @@ jobs:
 
       - name: Verify cache-hit output (second run should be true)
         shell: bash
+        env:
+          CACHE_HIT: ${{ steps.cache-second.outputs.cache-hit }}
         run: |
-          echo "cache-hit: ${{ steps.cache-second.outputs.cache-hit }}"
-          if [ "${{ steps.cache-second.outputs.cache-hit }}" != "true" ]; then
+          echo "cache-hit: ${CACHE_HIT}"
+          if [ "${CACHE_HIT}" != "true" ]; then
             echo "Warning: Expected cache-hit to be true on second run"
           fi
 
@@ -70,6 +78,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install aqua
         uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
@@ -103,12 +113,16 @@ jobs:
 
       - name: Verify outputs
         shell: bash
+        env:
+          AQUA_ROOT_DIR_OUTPUT: ${{ steps.cache-default.outputs.aqua-root-dir }}
+          CUSTOM_HASH: ${{ steps.cache-custom.outputs.config-file-hash }}
+          DEFAULT_HASH: ${{ steps.cache-default.outputs.config-file-hash }}
         run: |
-          if [ -z "${{ steps.cache-default.outputs.aqua-root-dir }}" ]; then
+          if [ -z "${AQUA_ROOT_DIR_OUTPUT}" ]; then
               echo "Error: aqua-root-dir output is empty"
               exit 1
           fi
-          if [ "${{ steps.cache-custom.outputs.config-file-hash }}" != "${{ steps.cache-default.outputs.config-file-hash }}" ]; then
+          if [ "${CUSTOM_HASH}" != "${DEFAULT_HASH}" ]; then
               echo "Error: config-file-hash outputs do not match"
               exit 1
           fi
