@@ -75,16 +75,18 @@ When `config-file` is not specified, the action automatically searches for aqua 
 The action creates cache keys with the following format:
 
 ```text
-aqua-installer-cache-{OS}-{ARCH}-{CONFIG_HASH}
+aqua-installer-cache-{OS}-{ARCH}-{ROOT_PATH_HASH}-{CONFIG_HASH}
 ```
 
 - **OS**: Runner OS (Linux, macOS, Windows)
 - **ARCH**: Runner architecture (X64, ARM64, etc.)
+- **ROOT_PATH_HASH**: SHA256 hash of the aqua root directory path
 - **CONFIG_HASH**: SHA256 hash of all aqua config files
 
 This ensures that:
 
 - Different OS/architecture combinations have separate caches
+- Different aqua root directories have separate caches
 - Cache is invalidated when config files change
 - Fallback to restore partial matches if exact hash doesn't match
 

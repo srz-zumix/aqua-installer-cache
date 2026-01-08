@@ -78,10 +78,14 @@ runs:
           echo "::warning::No aqua config file found"
           echo "aqua-yaml-hash=" >> "${GITHUB_OUTPUT}"
         fi
+
+        # Hash the aqua root directory path
+        AQUA_ROOT_PATH=$(grep '^path=' "${GITHUB_OUTPUT}" | cut -d'=' -f2-)
+        echo "aqua-root-path-hash=$(echo -n "${AQUA_ROOT_PATH}" | sha256sum | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
     - uses: actions/cache@v4
       id: cache
       with:
         path: ${{ steps.aqua-root-dir.outputs.path }}
-        key: aqua-installer-cache-${{ runner.os }}-${{ runner.arch }}-${{ steps.aqua-root-dir.outputs.aqua-yaml-hash }}
+        key: aqua-installer-cache-${{ runner.os }}-${{ runner.arch }}-${{ steps.aqua-root-dir.outputs.aqua-root-path-hash }}-${{ steps.aqua-root-dir.outputs.aqua-yaml-hash }}
         restore-keys: |
           aqua-installer-cache-${{ runner.os }}-${{ runner.arch }}-
